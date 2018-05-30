@@ -1,0 +1,7 @@
+##### training setting #####
+num of rollouts: 10 
+num of epochs: 30 
+NN hidden size: 64 
+learning rate: 0.000100 
+mean return: -30.2072 
+std of return: 0.5174 
