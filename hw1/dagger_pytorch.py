@@ -26,7 +26,7 @@ from torch.autograd import Variable
 
 from model import *
 
-def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, render):
+def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, render, envname):
 
     max_steps = max_timesteps or env.spec.timestep_limit
     policy_fn = load_policy.load_policy(expert_policy_file)
@@ -59,6 +59,12 @@ def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, rende
     print('returns', returns)
     print('mean return', np.mean(returns))
     print('std of return', np.std(returns))
+
+    result_file = open('result/result_%s_dagger.txt' % (envname), "w")
+    result_file.write("##### before setting #####\n")
+    result_file.write("mean return: %.4f \n" % np.mean(returns))
+    result_file.write("std of return: %.4f \n" % np.std(returns))
+    result_file.close()
 
     return observations, actions
 
@@ -130,7 +136,7 @@ def trainEpoch(net, pairs, args, test_pairs):
 	plt.plot(plot_losses)
 	plt.ylabel('Loss')
 	plt.xlabel('Iteration')
-	f.savefig("result/%s.pdf" % args.envname, bbox_inches='tight')
+	f.savefig("result/%s_dagger.pdf" % args.envname, bbox_inches='tight')
 
 def validate(net, pairs, args):
 	valid_pairs = [variablesFromPair(pair, args) for pair in pairs]
@@ -203,29 +209,30 @@ def test(env, net, max_timesteps, num_rollouts, render):
 		tf_util.initialize()
 		returns = []
 
-		observations = []
-		actions = []
-		obs = env.reset()
-		done = False
-		totalr = 0.
-		steps = 0
-		while not done:
-			action = net(Variable(torch.FloatTensor(obs)))
-			action = action.data.numpy()
-			action = np.reshape(action, (1,-1))
-			#print("expected action: ", expected_action)
-			#print("predicted action: ", action)
-			observations.append(obs)
-			actions.append(action)
-			obs, r, done, _ = env.step(action)
-			totalr += r
-			steps += 1
-			if render:
-				env.render()
-			if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
-			if steps >= max_steps:
-				break
-		returns.append(totalr)
+		for i in range(5):
+			observations = []
+			actions = []
+			obs = env.reset()
+			done = False
+			totalr = 0.
+			steps = 0
+			while not done:
+				action = net(Variable(torch.FloatTensor(obs)))
+				action = action.data.numpy()
+				action = np.reshape(action, (1,-1))
+				#print("expected action: ", expected_action)
+				#print("predicted action: ", action)
+				observations.append(obs)
+				actions.append(action)
+				obs, r, done, _ = env.step(action)
+				totalr += r
+				steps += 1
+				if render:
+					env.render()
+				if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
+				if steps >= max_steps:
+					break
+			returns.append(totalr)
 	print('returns', returns)
 	print('mean return', np.mean(returns))
 	print('std of return', np.std(returns))
@@ -240,14 +247,14 @@ def main():
     parser.add_argument('envname', type=str)
     parser.add_argument('--render', action='store_true')
     parser.add_argument("--max_timesteps", type=int)
-    parser.add_argument('--num_rollouts', type=int, default=20,
+    parser.add_argument('--num_rollouts', type=int, default=5,
                         help='Number of expert roll outs')
     parser.add_argument('--hidden_size', type=int, default=64)
-    parser.add_argument('--epoch', type=int, default=5)
-    parser.add_argument('--lr', type=float, default=0.001)
+    parser.add_argument('--epoch', type=int, default=30)
+    parser.add_argument('--lr', type=float, default=0.0001)
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-    parser.add_argument('--num_dagger_rollouts', type=int, default=30)
+    parser.add_argument('--num_dagger_rollouts', type=int, default=5)
     parser.add_argument('--num_dagger', type=int, default=5)
 
     args = parser.parse_args()
@@ -255,7 +262,7 @@ def main():
     env = gym.make(args.envname)
 
     obs, acts = generate_rollout(env, args.expert_policy_file, args.max_timesteps, \
-        args.num_rollouts, args.render)
+        args.num_rollouts, args.render, args.envname)
     num_pairs = len(obs)
 
     pairs = makePairs(obs, acts)
@@ -295,7 +302,7 @@ def main():
 
     print("####### After training #######")
 
-    result_file = open('result/result_%s.txt' % (args.envname), "w")
+    result_file = open('result/result_%s_dagger.txt' % (args.envname), "a")
     result_file.write("##### training setting #####\n")
     result_file.write("num of rollouts: %d \n" % args.num_rollouts)
     result_file.write("num of epochs: %d \n" % args.epoch)

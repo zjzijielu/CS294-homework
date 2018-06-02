@@ -26,7 +26,7 @@ from torch.autograd import Variable
 
 from model import *
 
-def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, render):
+def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, render, envname):
 
     max_steps = max_timesteps or env.spec.timestep_limit
     policy_fn = load_policy.load_policy(expert_policy_file)
@@ -59,6 +59,12 @@ def generate_rollout(env, expert_policy_file, max_timesteps, num_rollouts, rende
     print('returns', returns)
     print('mean return', np.mean(returns))
     print('std of return', np.std(returns))
+
+    result_file = open('result/result_%s.txt' % (envname), "w")
+    result_file.write("##### before setting #####\n")
+    result_file.write("mean return: %.4f \n" % np.mean(returns))
+    result_file.write("std of return: %.4f \n" % np.std(returns))
+    result_file.close()
 
     return observations, actions
 
@@ -159,7 +165,7 @@ def test(env, expert_policy_file, net, max_timesteps, num_rollouts, render):
 		tf_util.initialize()
 		returns = []
 
-		for i in range(args.num_rollouts):
+		for i in range(num_rollouts):
 			observations = []
 			actions = []
 			obs = env.reset()
@@ -200,10 +206,10 @@ def main():
     parser.add_argument('envname', type=str)
     parser.add_argument('--render', action='store_true')
     parser.add_argument("--max_timesteps", type=int)
-    parser.add_argument('--num_rollouts', type=int, default=20,
+    parser.add_argument('--num_rollouts', type=int, default=5,
                         help='Number of expert roll outs')
     parser.add_argument('--hidden_size', type=int, default=64)
-    parser.add_argument('--epoch', type=int, default=5)
+    parser.add_argument('--epoch', type=int, default=30)
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
@@ -213,7 +219,7 @@ def main():
     env = gym.make(args.envname)
 
     obs, acts = generate_rollout(env, args.expert_policy_file, args.max_timesteps, \
-        args.num_rollouts, args.render)
+        args.num_rollouts, args.render, args.envname)
     num_pairs = len(obs)
 
     pairs = makePairs(obs, acts)
@@ -244,14 +250,15 @@ def main():
     #print("acc on training pairs: %.3f" % validate(net, training_pairs, args))
     returns = test(env, args.expert_policy_file, net, args.max_timesteps, args.num_rollouts, args.render)
 
-    result_file = open('result/result_%s.txt' % (args.envname), "w")
+    result_file = open('result/result_%s.txt' % (args.envname), "a")
     result_file.write("##### training setting #####\n")
     result_file.write("num of rollouts: %d \n" % args.num_rollouts)
     result_file.write("num of epochs: %d \n" % args.epoch)
     result_file.write("NN hidden size: %d \n" % args.hidden_size)
-    result_file.write("learning rate: %f \n" % args.lr)
+    result_file.write("learning rate: " + str(args.lr) + " \n" )
     result_file.write("mean return: %.4f \n" % np.mean(returns))
     result_file.write("std of return: %.4f \n" % np.std(returns))
+
     result_file.close()
 
 
