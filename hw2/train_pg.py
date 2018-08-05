@@ -38,7 +38,7 @@ def build_mlp(
         input = input_placeholder
         for i in range(n_layers):
             out = tf.layers.dense(inputs=input, units=size, activation=activation)
-        out = tf.layers.dense(inputs=input, units=output_size, activation=output_activation)
+        out = tf.layers.dense(inputs=out, units=output_size, activation=output_activation)
         return out
 
 def pathlength(path):
@@ -193,7 +193,7 @@ def train_PG(exp_name='',
     # Loss Function and Training Operation
     #========================================================================================#
 
-    loss = tf.reduce_mean(sy_logprob_n * sy_adv_n) # Loss function that we'll differentiate to get the policy gradient.
+    loss = tf.reduce_mean(-sy_logprob_n * sy_adv_n) # Loss function that we'll differentiate to get the policy gradient.
     update_op = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
 
@@ -345,8 +345,6 @@ def train_PG(exp_name='',
             q_n.extend(q_path)
 
 
-
-
         #====================================================================================#
         #                           ----------SECTION 5----------
         # Computing Baselines
@@ -376,9 +374,9 @@ def train_PG(exp_name='',
             # On the next line, implement a trick which is known empirically to reduce variance
             # in policy gradient methods: normalize adv_n to have mean zero and std=1. 
             # YOUR_CODE_HERE
-            adv_mean = np.mean(adv_mean, axis=0)
-            adv_std = np.std(adv_std, axis=0)
-            adv_n = (adv_n - adv_mean) / adv_std
+            adv_mean = np.mean(adv_n, axis=0)
+            adv_std = np.std(adv_n, axis=0)
+            adv_n = (adv_n - adv_mean) / (adv_std + 1e-7)
 
 
         #====================================================================================#
@@ -399,8 +397,8 @@ def train_PG(exp_name='',
             # YOUR_CODE_HERE
             q_n_mean = np.mean(q_n, axis=0)
             q_n_std = np.std(q_n, axis=0)
-            q_n = (q_n - q_n_mean) / q_n_std
-            sess.run(baseline_update_op, feed_dict={sy_target_n: q_n})
+            q_n = (q_n - q_n_mean) / (q_n_std + 1e-7)
+            sess.run(baseline_update_op, feed_dict={sy_ob_no: ob_no, sy_target_n: q_n})
             
 
         #====================================================================================#
@@ -415,13 +413,16 @@ def train_PG(exp_name='',
         # and after an update, and then log them below. 
 
         # YOUR_CODE_HERE
+        feed_dict = {sy_ob_no: ob_no, sy_ac_na: ac_na, sy_adv_n: q_n}
+        loss_1 = sess.run(loss, feed_dict)
         sess.run(update_op, feed_dict={sy_ob_no: ob_no, sy_ac_na: ac_na, sy_adv_n: q_n})
-
+        loss_2 = sess.run(loss, feed_dict)
 
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]
         ep_lengths = [pathlength(path) for path in paths]
         logz.log_tabular("Time", time.time() - start)
+        logz.log_tabular("LossData", loss_1)
         logz.log_tabular("Iteration", itr)
         logz.log_tabular("AverageReturn", np.mean(returns))
         logz.log_tabular("StdReturn", np.std(returns))
